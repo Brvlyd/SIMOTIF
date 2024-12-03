@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Carbon\Carbon;
 
 class Product extends Model
 {
@@ -14,7 +15,11 @@ class Product extends Model
         'brand',
         'vehicle_type',
         'stock',
-        'status'
+        'price',
+        'status',
+        'minimum_stock',
+        'created_at',
+        'updated_at'
     ];
 
     protected $dates = [
@@ -32,8 +37,28 @@ class Product extends Model
         'stock' => 'integer',
         'minimum_stock' => 'integer',
         'created_at' => 'datetime',
-        'updated_at' => 'datetime'
+        'updated_at' => 'datetime',
+        'price' => 'decimal:0', 
     ];
+
+    // Boot method untuk mengatur event updating
+    protected static function booted()
+    {
+        static::updating(function ($product) {
+            if ($product->isDirty('stock')) {
+                $product->timestamps = true;
+                $product->updated_at = Carbon::now('Asia/Jakarta');
+            }
+        });
+    }
+
+    // Accessor untuk format waktu yang konsisten
+    public function getFormattedUpdatedAtAttribute()
+    {
+        return Carbon::parse($this->updated_at)
+            ->setTimezone('Asia/Jakarta')
+            ->format('d/m/Y H:i:s');
+    }
 
     public function inventoryTransactions()
     {
@@ -48,14 +73,14 @@ class Product extends Model
     public function updateStock($quantity)
     {
         $this->stock = $quantity;
-        $this->updated_at = now();
+        $this->updated_at = Carbon::now('Asia/Jakarta');
         $this->save();
     }
 
     public function incrementStock($amount = 1)
     {
         $this->stock += $amount;
-        $this->updated_at = now();
+        $this->updated_at = Carbon::now('Asia/Jakarta');
         $this->save();
     }
 
@@ -63,7 +88,7 @@ class Product extends Model
     {
         if ($this->stock >= $amount) {
             $this->stock -= $amount;
-            $this->updated_at = now();
+            $this->updated_at = Carbon::now('Asia/Jakarta');
             $this->save();
             return true;
         }
@@ -77,13 +102,18 @@ class Product extends Model
 
     public function getLastUpdateAttribute()
     {
-        return $this->updated_at ? $this->updated_at->format('d/m/Y H:i:s') : '-';
+        if (!$this->updated_at) {
+            return '-';
+        }
+        
+        return Carbon::parse($this->updated_at)
+            ->setTimezone('Asia/Jakarta')
+            ->format('d/m/Y H:i:s');
     }
 
-     // Relasi ke ProdukTerjual
-     public function penjualan()
-     {
-         return $this->hasMany(ProdukTerjual::class);
-     }
-    
+    // Relasi ke ProdukTerjual
+    public function penjualan()
+    {
+        return $this->hasMany(ProdukTerjual::class);
+    }
 }

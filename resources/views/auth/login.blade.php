@@ -12,7 +12,7 @@
         <div class="max-w-md w-full space-y-8">
             <div>
                 <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                    SIMOTIF
+                    SAHABAT MOTOR
                 </h2>
                 <p class="mt-2 text-center text-sm text-gray-600">
                     Sistem Informasi Manajemen Inventory

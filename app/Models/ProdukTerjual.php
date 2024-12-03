@@ -12,10 +12,11 @@ class ProdukTerjual extends Model
     protected $table = 'produk_terjual';
 
     protected $fillable = [
-        'product_id',
-        'user_id',
+        'stock_id',
         'jumlah',
-        'tanggal_jual'
+        'tanggal_jual',
+        'user_id',
+        'harga_jual'
     ];
 
     protected $dates = [

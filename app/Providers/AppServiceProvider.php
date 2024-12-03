@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Carbon\Carbon;
+
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -17,8 +19,10 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(): void
+    public function boot()
     {
-        //
+        // Set default timezone ke Asia/Jakarta
+        config(['app.timezone' => 'Asia/Jakarta']);
+        Carbon::setLocale('id');
     }
 }

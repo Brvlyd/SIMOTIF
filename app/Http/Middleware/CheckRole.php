@@ -17,7 +17,13 @@ class CheckRole
             return redirect('login');
         }
 
-        if (!in_array($request->user()->role, $roles)) {
+        // Split roles jika ada operator OR (|)
+        $allowedRoles = [];
+        foreach ($roles as $role) {
+            $allowedRoles = array_merge($allowedRoles, explode('|', $role));
+        }
+
+        if (!in_array($request->user()->role, $allowedRoles)) {
             abort(403, 'Unauthorized action.');
         }
 

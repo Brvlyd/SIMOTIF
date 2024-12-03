@@ -6,8 +6,10 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\ProdukTerjualController;
+use App\Http\Controllers\ProductSaleController;
 use Illuminate\Support\Facades\Route;
 
+// Redirect root to login
 Route::get('/', function () {
     return redirect()->route('login');
 });
@@ -18,13 +20,16 @@ Route::middleware('guest')->group(function () {
     Route::post('login', [LoginController::class, 'login']);
 });
 
+// Protected Routes (Require Authentication)
 Route::middleware('auth')->group(function () {
+    // Logout Route
     Route::post('logout', [LoginController::class, 'logout'])->name('logout');
     
-    // Stock route - accessible by all authenticated users
+    // Common Routes (accessible by all authenticated users)
     Route::get('/stock', [ProductController::class, 'index'])->name('stock');
+    Route::get('/stock/search', [ProductController::class, 'search'])->name('products.search');
 
-    // Dashboard route
+    // Dashboard Route with Role-based Redirect
     Route::get('/dashboard', function () {
         $user = auth()->user();
         $route = $user->role . '.dashboard';
@@ -33,6 +38,7 @@ Route::middleware('auth')->group(function () {
 
     // Owner Routes
     Route::middleware('role:owner')->group(function () {
+        // Dashboard
         Route::get('/owner/dashboard', function () {
             return view('dashboard', ['type' => 'owner']);
         })->name('owner.dashboard');
@@ -40,72 +46,87 @@ Route::middleware('auth')->group(function () {
         // Product Management
         Route::resource('products', ProductController::class)->except(['show']);
 
-        // View All Transactions
-        Route::get('/transactions', [InventoryController::class, 'index'])->name('transactions.index');
-        Route::get('/transactions/search', [InventoryController::class, 'search'])->name('transactions.search');
-        
+        // Transaction Management
+        Route::prefix('transactions')->name('transactions.')->group(function () {
+            Route::get('/', [InventoryController::class, 'index'])->name('index');
+            Route::get('/search', [InventoryController::class, 'search'])->name('search');
+        });
+
         // Reports
-        Route::get('/reports', [ProductController::class, 'reports'])->name('reports');
-        Route::get('/reports/export', [ProductController::class, 'export'])->name('reports.export');
+        Route::prefix('reports')->name('reports.')->group(function () {
+            Route::get('/', [ProductController::class, 'reports'])->name('index');
+            Route::get('/export', [ProductController::class, 'exportPDF'])->name('export');
+        });
     });
 
     // Warehouse Routes
-    Route::middleware('role:warehouse')->group(function () {
+    Route::middleware('role:warehouse|owner')->group(function () {
+        // Dashboard
         Route::get('/warehouse/dashboard', function () {
             return view('dashboard', ['type' => 'warehouse']);
         })->name('warehouse.dashboard');
         
-        // Input Barang Routes
-        Route::get('/warehouse/input-barang', [WarehouseController::class, 'inputBarang'])->name('warehouse.input-barang');
-        Route::post('/warehouse/simpan-barang', [WarehouseController::class, 'simpanBarang'])->name('warehouse.simpan-barang');
+        // Warehouse Management
+        Route::prefix('warehouse')->name('warehouse.')->group(function () {
+            Route::get('/input-barang', [WarehouseController::class, 'inputBarang'])->name('input-barang');
+            Route::post('/simpan-barang', [WarehouseController::class, 'simpanBarang'])->name('simpan-barang');
+            Route::get('/edit-barang/{id}', [WarehouseController::class, 'editBarang'])->name('edit-barang');
+            Route::put('/update-barang/{id}', [WarehouseController::class, 'updateBarang'])->name('update-barang');
+            Route::delete('/hapus-barang/{id}', [WarehouseController::class, 'hapusBarang'])->name('hapus-barang');
+            Route::get('/riwayat-barang/{id}', [WarehouseController::class, 'riwayatBarang'])->name('riwayat-barang');
+        });
         
-        // Inventory Management - Product In
-        Route::get('/product-in', [InventoryController::class, 'productIn'])->name('inventory.product-in');
-        Route::post('/product-in', [InventoryController::class, 'storeProductIn']);
-        Route::get('/product-in/history', [InventoryController::class, 'productInHistory'])
-            ->name('inventory.product-in.history');
+        // Inventory Management
+        Route::prefix('inventory')->name('inventory.')->group(function () {
+            // Product In
+            Route::get('/product-in', [InventoryController::class, 'productIn'])->name('product-in');
+            Route::post('/product-in', [InventoryController::class, 'storeProductIn']);
+            Route::get('/product-in/history', [InventoryController::class, 'productInHistory'])->name('product-in.history');
+            
+            // Stock Adjustments
+            Route::post('/adjust-stock/{id}', [WarehouseController::class, 'adjustStock'])->name('adjust-stock');
+        });
     });
 
     // Sales Routes
-    Route::middleware('role:sales')->group(function () {
+    Route::middleware('role:sales|owner')->group(function () {
+        // Dashboard
         Route::get('/sales/dashboard', function () {
             return view('dashboard', ['type' => 'sales']);
         })->name('sales.dashboard');
         
-        // Updated Produk Terjual Routes
-        Route::get('/products/sold', [ProductController::class, 'sold'])->name('products.sold');
-        Route::get('/products/create-sale', [ProductController::class, 'createSale'])->name('products.create-sale');
-        Route::post('/products/store-sale', [ProductController::class, 'storeSale'])->name('products.store-sale');
-        Route::get('/products/search-sold', [ProductController::class, 'searchSoldProducts'])->name('products.searchSold');
+        // Sales Management
+        Route::prefix('products')->name('products.')->group(function () {
+            Route::get('/sold', [ProductSaleController::class, 'index'])->name('sold');
+            Route::get('/create-sale', [ProductSaleController::class, 'create'])->name('create-sale');
+            Route::post('/store-sale', [ProductSaleController::class, 'store'])->name('store-sale');
+            Route::get('/search-sold', [ProductSaleController::class, 'index'])->name('searchSold');
+            Route::get('/export-pdf', [ProductController::class, 'exportPDF'])->name('exportPdf');
+        });
         
-        // Inventory Management - Product Out
-        Route::get('/product-out', [InventoryController::class, 'productOut'])->name('inventory.product-out');
-        Route::post('/product-out', [InventoryController::class, 'storeProductOut']);
-        Route::get('/product-out/history', [InventoryController::class, 'productOutHistory'])
-            ->name('inventory.product-out.history');
+        // Inventory Out Management
+        Route::prefix('inventory')->name('inventory.')->group(function () {
+            Route::get('/product-out', [InventoryController::class, 'productOut'])->name('product-out');
+            Route::post('/product-out', [InventoryController::class, 'storeProductOut']);
+            Route::get('/product-out/history', [InventoryController::class, 'productOutHistory'])->name('product-out.history');
+        });
     });
 
-    // Profile Management
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    
-    // Stock Management
-    Route::prefix('stock')->group(function () {
-        Route::get('/alerts', [ProductController::class, 'alerts'])->name('stock.alerts');
-        Route::get('/history/{product}', [ProductController::class, 'history'])->name('stock.history');
-        Route::get('/search', [ProductController::class, 'search'])->name('stock.search');
+    // Profile Management Routes
+    Route::prefix('profile')->name('profile.')->group(function () {
+        Route::get('/', [ProfileController::class, 'edit'])->name('edit');
+        Route::patch('/', [ProfileController::class, 'update'])->name('update');
+        Route::delete('/', [ProfileController::class, 'destroy'])->name('destroy');
     });
 
-    // API Routes for AJAX requests
+    // API Routes for AJAX Requests
     Route::prefix('api')->group(function () {
         Route::get('/check-low-stock', [ProductController::class, 'checkLowStock']);
-        Route::get('/product/search', [ProductController::class, 'search'])->name('products.search');
         Route::get('/transactions/chart-data', [InventoryController::class, 'getChartData']);
     });
 });
 
-// Fallback route
+// Fallback Route
 Route::fallback(function () {
     return redirect()->route('dashboard');
 });

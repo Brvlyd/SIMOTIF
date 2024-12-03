@@ -6,140 +6,200 @@ use App\Models\Product;
 use App\Models\InventoryTransaction;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class WarehouseController extends Controller
 {
-   public function inputBarang()
-   {
-       return view('warehouse.input-barang');
-   }
+    public function inputBarang()
+    {
+        $transactions = InventoryTransaction::with(['product', 'user'])
+            ->where('type', 'in')
+            ->latest()
+            ->paginate(10);
+    
+        $totalTransactions = InventoryTransaction::where('type', 'in')->count();
+        $totalProducts = InventoryTransaction::where('type', 'in')->sum('quantity');
+        $uniqueProducts = InventoryTransaction::where('type', 'in')
+            ->distinct('product_id')
+            ->count();
+    
+        return view('warehouse.input-barang', compact(
+            'transactions',
+            'totalTransactions',
+            'totalProducts',
+            'uniqueProducts'
+        ));
+    }
 
-   public function simpanBarang(Request $request)
-   {
-       $validated = $request->validate([
-           'name' => 'required|string|max:255',
-           'brand' => 'required|string|max:255',
-           'vehicle_type' => 'required|string|max:255', 
-           'stock' => 'required|integer|min:0',
-           'minimum_stock' => 'nullable|integer|min:0'
-       ], [
-           'name.required' => 'Nama suku cadang wajib diisi',
-           'brand.required' => 'Merek suku cadang wajib diisi',
-           'vehicle_type.required' => 'Tipe kendaraan wajib diisi',
-           'stock.required' => 'Jumlah stok wajib diisi',
-           'stock.min' => 'Jumlah stok minimal 0',
-           'minimum_stock.min' => 'Stok minimum tidak boleh kurang dari 0'
-       ]);
+    public function simpanBarang(Request $request)
+    {
+        // Validate products array
+        $request->validate([
+            'products' => 'required|array',
+            'products.*.name' => 'required|string|max:255',
+            'products.*.brand' => 'required|string|max:255',
+            'products.*.vehicle_type' => 'required|string|max:255',
+            'products.*.stock' => 'required|integer|min:1',
+            'products.*.price' => 'required|string'
+        ], [
+            'products.*.name.required' => 'Nama suku cadang wajib diisi',
+            'products.*.brand.required' => 'Merek suku cadang wajib diisi',
+            'products.*.vehicle_type.required' => 'Tipe kendaraan wajib diisi',
+            'products.*.stock.required' => 'Jumlah stok wajib diisi',
+            'products.*.stock.min' => 'Jumlah stok minimal 1',
+            'products.*.price.required' => 'Harga wajib diisi'
+        ]);
 
-       // Set default minimum stock jika tidak diisi
-       if (!isset($validated['minimum_stock'])) {
-           $validated['minimum_stock'] = 10;
-       }
+        DB::beginTransaction();
+        try {
+            foreach ($request->products as $productData) {
+                // Set default minimum stock dan status
+                $productData['minimum_stock'] = 10;
+                $productData['status'] = 'available';
+                
+                // Konversi harga: hilangkan titik/koma dan konversi ke integer
+                $price = (int) str_replace(['.', ','], '', $productData['price']);
+                $productData['price'] = $price;
+            
+                // Simpan produk
+                $product = Product::create($productData);
+            
+                // Catat transaksi inventory
+                InventoryTransaction::create([
+                    'product_id' => $product->id,
+                    'type' => 'in',
+                    'quantity' => $productData['stock'],
+                    'date' => now(),
+                    'notes' => 'Stok awal produk - Harga: Rp ' . number_format($price, 0, ',', '.'),
+                    'user_id' => auth()->id()
+                ]);
+            }
 
-       // Set timestamps
-       $validated['created_at'] = now();
-       $validated['updated_at'] = now();
+            DB::commit();
+            return redirect()->route('warehouse.input-barang')
+                ->with('success', 'Semua barang berhasil ditambahkan ke gudang');
 
-       // Simpan produk
-       $product = Product::create($validated);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return redirect()->back()
+                ->with('error', 'Terjadi kesalahan: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
 
-       // Catat transaksi inventory
-       InventoryTransaction::create([
-           'product_id' => $product->id,
-           'type' => 'in',
-           'quantity' => $validated['stock'],
-           'date' => now(),
-           'notes' => 'Stok awal produk',
-           'user_id' => auth()->id()
-       ]);
+    public function editBarang($id)
+    {
+        $product = Product::findOrFail($id);
+        return view('warehouse.edit-barang', compact('product'));
+    }
 
-       return redirect()->route('stock')
-           ->with('success', 'Barang berhasil ditambahkan ke gudang');
-   }
+    public function updateBarang(Request $request, $id)
+    {
+        $product = Product::findOrFail($id);
+        
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'brand' => 'required|string|max:255',
+            'vehicle_type' => 'required|string|max:255',
+            'stock' => 'required|integer|min:0',
+            'minimum_stock' => 'nullable|integer|min:0',
+            'price' => 'required|numeric|min:0'
+        ]);
 
-   public function editBarang($id)
-   {
-       $product = Product::findOrFail($id);
-       return view('warehouse.edit-barang', compact('product'));
-   }
+        $oldStock = $product->stock;
+        $newStock = $validated['stock'];
+        $stockDiff = $newStock - $oldStock;
 
-   public function updateBarang(Request $request, $id)
-   {
-       $product = Product::findOrFail($id);
-       
-       $validated = $request->validate([
-           'name' => 'required|string|max:255',
-           'brand' => 'required|string|max:255',
-           'vehicle_type' => 'required|string|max:255',
-           'stock' => 'required|integer|min:0',
-           'minimum_stock' => 'nullable|integer|min:0'
-       ]);
+        DB::beginTransaction();
+        try {
+            // Update product
+            $product->update($validated);
 
-       $oldStock = $product->stock;
-       $newStock = $validated['stock'];
-       $stockDiff = $newStock - $oldStock;
+            // Record stock change if different
+            if ($stockDiff != 0) {
+                InventoryTransaction::create([
+                    'product_id' => $product->id,
+                    'type' => $stockDiff > 0 ? 'in' : 'out',
+                    'quantity' => abs($stockDiff),
+                    'date' => now(),
+                    'notes' => 'Penyesuaian stok manual',
+                    'user_id' => auth()->id()
+                ]);
+            }
 
-       $product->update($validated);
+            DB::commit();
+            return redirect()->route('stock')
+                ->with('success', 'Data barang berhasil diperbarui');
 
-       if ($stockDiff != 0) {
-           InventoryTransaction::create([
-               'product_id' => $product->id,
-               'type' => $stockDiff > 0 ? 'in' : 'out',
-               'quantity' => abs($stockDiff),
-               'date' => now(),
-               'notes' => 'Penyesuaian stok manual',
-               'user_id' => auth()->id()
-           ]);
-       }
+        } catch (\Exception $e) {
+            DB::rollback();
+            return redirect()->back()
+                ->with('error', 'Terjadi kesalahan saat memperbarui data')
+                ->withInput();
+        }
+    }
 
-       return redirect()->route('stock')
-           ->with('success', 'Data barang berhasil diperbarui');
-   }
+    public function hapusBarang($id)
+    {
+        try {
+            $product = Product::findOrFail($id);
+            $product->delete();
 
-   public function hapusBarang($id)
-   {
-       $product = Product::findOrFail($id);
-       $product->delete();
+            return redirect()->route('stock')
+                ->with('success', 'Barang berhasil dihapus');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Terjadi kesalahan saat menghapus data');
+        }
+    }
 
-       return redirect()->route('stock')
-           ->with('success', 'Barang berhasil dihapus');
-   }
+    public function riwayatBarang($id)
+    {
+        $product = Product::with(['inventoryTransactions' => function($query) {
+            $query->latest('date');
+        }])->findOrFail($id);
+        
+        return view('warehouse.riwayat-barang', compact('product'));
+    }
 
-   public function riwayatBarang($id)
-   {
-       $product = Product::with('inventoryTransactions')->findOrFail($id);
-       return view('warehouse.riwayat-barang', compact('product'));
-   }
+    public function adjustStock(Request $request, $id)
+    {
+        $request->validate([
+            'adjustment' => 'required|integer',
+            'notes' => 'required|string|max:255'
+        ]);
 
-   public function adjustStock(Request $request, $id)
-   {
-       $request->validate([
-           'adjustment' => 'required|integer',
-           'notes' => 'required|string|max:255'
-       ]);
+        DB::beginTransaction();
+        try {
+            $product = Product::findOrFail($id);
+            
+            // Check if adjustment would make stock negative
+            if ($product->stock + $request->adjustment < 0) {
+                throw new \Exception('Penyesuaian akan membuat stok menjadi negatif');
+            }
+            
+            // Update stock
+            $product->stock += $request->adjustment;
+            $product->save();
 
-       $product = Product::findOrFail($id);
-       
-       if ($request->adjustment > 0) {
-           $product->incrementStock($request->adjustment);
-           $type = 'in';
-       } else {
-           if (!$product->decrementStock(abs($request->adjustment))) {
-               return redirect()->back()->with('error', 'Stok tidak mencukupi');
-           }
-           $type = 'out';
-       }
+            // Create transaction record
+            InventoryTransaction::create([
+                'product_id' => $id,
+                'type' => $request->adjustment > 0 ? 'in' : 'out',
+                'quantity' => abs($request->adjustment),
+                'date' => now(),
+                'notes' => $request->notes,
+                'user_id' => auth()->id()
+            ]);
 
-       InventoryTransaction::create([
-           'product_id' => $id,
-           'type' => $type,
-           'quantity' => abs($request->adjustment),
-           'date' => now(),
-           'notes' => $request->notes,
-           'user_id' => auth()->id()
-       ]);
+            DB::commit();
+            return redirect()->route('stock')
+                ->with('success', 'Stok berhasil disesuaikan');
 
-       return redirect()->route('stock')
-           ->with('success', 'Stok berhasil disesuaikan');
-   }
+        } catch (\Exception $e) {
+            DB::rollback();
+            return redirect()->back()
+                ->with('error', $e->getMessage());
+        }
+    }
 }
