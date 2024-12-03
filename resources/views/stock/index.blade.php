@@ -45,7 +45,6 @@
         <div class="mb-6 bg-gray-50 p-4 rounded-lg">
             <form action="{{ route('products.search') }}" method="GET" class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <!-- Product Name Search -->
                     <div>
                         <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Nama Produk</label>
                         <input type="text" 
@@ -56,18 +55,16 @@
                                value="{{ request('search') }}">
                     </div>
                     
-                    <!-- Brand Filter -->
                     <div>
-                        <label for="brand" class="block text-sm font-medium text-gray-700 mb-1">Brand</label>
+                        <label for="brand" class="block text-sm font-medium text-gray-700 mb-1">Merek</label>
                         <input type="text" 
                                id="brand"
                                name="brand" 
-                               placeholder="Filter by brand..."
+                               placeholder="Filter by merek..."
                                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                                value="{{ request('brand') }}">
                     </div>
                     
-                    <!-- Vehicle Type Filter -->
                     <div>
                         <label for="vehicle_type" class="block text-sm font-medium text-gray-700 mb-1">Tipe Kendaraan</label>
                         <input type="text" 
@@ -78,7 +75,6 @@
                                value="{{ request('vehicle_type') }}">
                     </div>
                     
-                    <!-- Stock Status Filter -->
                     <div>
                         <label for="stock_status" class="block text-sm font-medium text-gray-700 mb-1">Status Stok</label>
                         <select name="stock_status" 
@@ -114,28 +110,74 @@
                             No
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Nama Produk
+                            <a href="{{ route('stock', ['sort' => 'name', 'order' => request('sort') === 'name' && request('order') === 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'order'])) }}" 
+                               class="flex items-center space-x-1 group">
+                                <span>Nama Produk</span>
+                                @if(request('sort') === 'name')
+                                    <svg class="w-4 h-4 {{ request('order') === 'asc' ? '' : 'transform rotate-180' }}" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+                                    </svg>
+                                @endif
+                            </a>
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Brand
+                            <a href="{{ route('stock', ['sort' => 'brand', 'order' => request('sort') === 'brand' && request('order') === 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'order'])) }}" 
+                               class="flex items-center space-x-1 group">
+                                <span>Merek</span>
+                                @if(request('sort') === 'brand')
+                                    <svg class="w-4 h-4 {{ request('order') === 'asc' ? '' : 'transform rotate-180' }}" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+                                    </svg>
+                                @endif
+                            </a>
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Tipe Kendaraan
+                            <a href="{{ route('stock', ['sort' => 'vehicle_type', 'order' => request('sort') === 'vehicle_type' && request('order') === 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'order'])) }}" 
+                               class="flex items-center space-x-1 group">
+                                <span>Tipe Kendaraan</span>
+                                @if(request('sort') === 'vehicle_type')
+                                    <svg class="w-4 h-4 {{ request('order') === 'asc' ? '' : 'transform rotate-180' }}" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+                                    </svg>
+                                @endif
+                            </a>
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Stok
+                            <a href="{{ route('stock', ['sort' => 'stock', 'order' => request('sort') === 'stock' && request('order') === 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'order'])) }}" 
+                               class="flex items-center space-x-1 group">
+                                <span>Stok</span>
+                                @if(request('sort') === 'stock')
+                                    <svg class="w-4 h-4 {{ request('order') === 'asc' ? '' : 'transform rotate-180' }}" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+                                    </svg>
+                                @endif
+                            </a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <a href="{{ route('stock', ['sort' => 'price', 'order' => request('sort') === 'price' && request('order') === 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'order'])) }}" 
+                               class="flex items-center space-x-1 group">
+                                <span>Harga</span>
+                                @if(request('sort') === 'price')
+                                    <svg class="w-4 h-4 {{ request('order') === 'asc' ? '' : 'transform rotate-180' }}" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+                                    </svg>
+                                @endif
+                            </a>
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Terakhir Update
+                            <a href="{{ route('stock', ['sort' => 'updated_at', 'order' => request('sort') === 'updated_at' && request('order') === 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'order'])) }}" 
+                               class="flex items-center space-x-1 group">
+                                <span>Terakhir Update</span>
+                                @if(request('sort') === 'updated_at')
+                                    <svg class="w-4 h-4 {{ request('order') === 'asc' ? '' : 'transform rotate-180' }}" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+                                    </svg>
+                                @endif
+                            </a>
                         </th>
-                        @if(auth()->user()->role === 'warehouse' || auth()->user()->role === 'owner')
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Aksi
-                        </th>
-                        @endif
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -158,6 +200,9 @@
                                 {{ $product->stock }}
                             </span>
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            Rp {{ number_format($product->price, 0, ',', '.') }}
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             @if($product->stock <= $product->minimum_stock)
                                 <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
@@ -172,18 +217,10 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {{ $product->updated_at->format('d/m/Y H:i:s') }}
                         </td>
-                        @if(auth()->user()->role === 'warehouse' || auth()->user()->role === 'owner')
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <a href="{{ route('warehouse.edit-barang', $product->id) }}" 
-                               class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
-                            <a href="{{ route('warehouse.riwayat-barang', $product->id) }}"
-                               class="text-blue-600 hover:text-blue-900">Riwayat</a>
-                        </td>
-                        @endif
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="px-6 py-4 whitespace-nowrap text-center text-gray-500">
+                        <td colspan="9" class="px-6 py-4 whitespace-nowrap text-center text-gray-500">
                             Tidak ada data produk
                         </td>
                     </tr>
@@ -215,6 +252,17 @@
                 e.preventDefault();
                 this.form.submit();
             }
+        });
+    });
+
+    // Hover effects for sort headers
+    const sortHeaders = document.querySelectorAll('th a');
+    sortHeaders.forEach(header => {
+        header.addEventListener('mouseover', function() {
+            this.classList.add('text-indigo-600');
+        });
+        header.addEventListener('mouseout', function() {
+            this.classList.remove('text-indigo-600');
         });
     });
 </script>

@@ -42,6 +42,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/owner/dashboard', function () {
             return view('dashboard', ['type' => 'owner']);
         })->name('owner.dashboard');
+
+        Route::get('/products/print-receipt/{id}', [ProductController::class, 'printReceipt'])
+        ->name('products.print-receipt');
         
         // Product Management
         Route::resource('products', ProductController::class)->except(['show']);
@@ -125,6 +128,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/transactions/chart-data', [InventoryController::class, 'getChartData']);
     });
 });
+
+
 
 // Fallback Route
 Route::fallback(function () {

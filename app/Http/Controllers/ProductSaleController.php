@@ -13,7 +13,10 @@ class ProductSaleController extends Controller
 {
     public function create()
     {
-        $products = Product::where('stock', '>', 0)->get(); // Hanya ambil produk yang masih ada stok
+        $products = Product::where('stock', '>', 0)
+            ->select('id', 'name', 'brand', 'stock', 'price') // Pastikan price termasuk
+            ->get();
+            
         return view('products.create-sale', compact('products'));
     }
 
@@ -26,42 +29,42 @@ class ProductSaleController extends Controller
             'products.*.harga' => 'required|numeric|min:0',
             'tanggal_jual' => 'required|date',
         ]);
-    
+
         try {
             DB::beginTransaction();
-    
+
             $sale = Sale::create([
                 'tanggal_jual' => $request->tanggal_jual,
                 'user_id' => auth()->id(),
             ]);
-    
+
             foreach ($request->products as $productData) {
                 $product = Product::find($productData['product_id']);
                 
                 if ($product->stock < $productData['jumlah']) {
                     throw new \Exception("Stok tidak mencukupi untuk produk {$product->name}");
                 }
-    
-                // Simpan total sesuai dengan harga yang diinput
+
+                // Create sale detail
                 SaleDetail::create([
                     'sale_id' => $sale->id,
                     'product_id' => $productData['product_id'],
                     'jumlah' => $productData['jumlah'],
                     'harga' => $productData['harga'],
-                    'total' => $productData['harga'] // Total sama dengan harga yang diinput
+                    'total' => $productData['harga'] * $productData['jumlah']
                 ]);
-    
-                $product->update([
-                    'stock' => $product->stock - $productData['jumlah']
-                ]);
+
+                // Update product stock
+                $product->stock -= $productData['jumlah'];
+                $product->save();
             }
-    
+
             DB::commit();
             return redirect()->route('products.sold')->with('success', 'Penjualan berhasil disimpan');
-    
+
         } catch (\Exception $e) {
             DB::rollback();
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', $e->getMessage())->withInput();
         }
     }
 

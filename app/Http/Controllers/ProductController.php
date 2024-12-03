@@ -13,10 +13,50 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ProductController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $products = Product::orderBy('created_at', 'desc')->paginate(10);
-        return view('products.index', compact('products'));
+        $query = Product::query();
+        
+        // Sorting
+        $sortField = $request->get('sort', 'name');
+        $sortOrder = $request->get('order', 'asc');
+        $allowedSortFields = ['name', 'brand', 'vehicle_type', 'stock', 'updated_at'];
+        
+        if (in_array($sortField, $allowedSortFields)) {
+            $query->orderBy($sortField, $sortOrder);
+        } else {
+            $query->orderBy('name', 'asc');
+        }
+        
+        // Filters
+        if ($request->filled('search')) {
+            $query->where(function($q) use ($request) {
+                $q->where('name', 'like', "%{$request->search}%")
+                  ->orWhere('brand', 'like', "%{$request->search}%")
+                  ->orWhere('vehicle_type', 'like', "%{$request->search}%");
+            });
+        }
+
+        if ($request->filled('brand')) {
+            $query->where('brand', 'like', "%{$request->brand}%");
+        }
+
+        if ($request->filled('vehicle_type')) {
+            $query->where('vehicle_type', 'like', "%{$request->vehicle_type}%");
+        }
+
+        if ($request->filled('stock_status')) {
+            if ($request->stock_status === 'low') {
+                $query->whereRaw('stock <= minimum_stock');
+            } elseif ($request->stock_status === 'available') {
+                $query->whereRaw('stock > minimum_stock');
+            }
+        }
+
+        $products = $query->paginate(10);
+        $products->appends($request->all());
+
+        return view('stock.index', compact('products'));
     }
 
     public function create()
@@ -73,11 +113,9 @@ class ProductController extends Controller
         
         $product->update($data);
 
-        // Update status based on new stock
         $product->status = $product->stock == 0 ? 'sold' : 'available';
         $product->save();
 
-        // Record stock change if different
         if ($oldStock != $newStock) {
             $product->inventoryTransactions()->create([
                 'type' => $newStock > $oldStock ? 'in' : 'out',
@@ -100,47 +138,7 @@ class ProductController extends Controller
 
     public function search(Request $request)
     {
-        $query = Product::query();
-
-        // Search by name, brand, or vehicle type
-        if ($request->filled('search')) {
-            $query->where(function($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('brand', 'like', "%{$request->search}%")
-                  ->orWhere('vehicle_type', 'like', "%{$request->search}%");
-            });
-        }
-
-        // Filter by brand
-        if ($request->filled('brand')) {
-            $query->where('brand', 'like', "%{$request->brand}%");
-        }
-
-        // Filter by vehicle type
-        if ($request->filled('vehicle_type')) {
-            $query->where('vehicle_type', 'like', "%{$request->vehicle_type}%");
-        }
-
-        // Filter by stock status
-        if ($request->filled('stock_status')) {
-            if ($request->stock_status === 'low') {
-                $query->whereRaw('stock <= minimum_stock');
-            } elseif ($request->stock_status === 'available') {
-                $query->whereRaw('stock > minimum_stock');
-            }
-        }
-
-        $products = $query->orderBy('created_at', 'desc')->paginate(10);
-        $products->appends($request->all());
-
-        if ($request->ajax()) {
-            return response()->json([
-                'table' => view('products.partials.product-table', compact('products'))->render(),
-                'pagination' => $products->links()->toHtml()
-            ]);
-        }
-
-        return view('products.index', compact('products'));
+        return $this->index($request);
     }
 
     public function sold(Request $request)
@@ -150,7 +148,6 @@ class ProductController extends Controller
             ->select('sale_details.*')
             ->orderBy('sales.tanggal_jual', 'desc');
 
-        // Filter by search
         if ($request->filled('search')) {
             $search = $request->search;
             $query->whereHas('product', function($q) use ($search) {
@@ -159,7 +156,6 @@ class ProductController extends Controller
             });
         }
 
-        // Filter by date
         if ($request->filled('date')) {
             $query->whereDate('sales.tanggal_jual', $request->date);
         }
@@ -209,7 +205,6 @@ class ProductController extends Controller
                     throw new \Exception("Stok tidak mencukupi untuk produk {$product->name}");
                 }
 
-                // Create sale detail
                 SaleDetail::create([
                     'sale_id' => $sale->id,
                     'product_id' => $product->id,
@@ -217,12 +212,10 @@ class ProductController extends Controller
                     'harga' => $productData['harga']
                 ]);
 
-                // Update product stock
                 $product->stock -= $productData['jumlah'];
                 $product->status = $product->stock == 0 ? 'sold' : 'available';
                 $product->save();
 
-                // Record inventory transaction
                 $product->inventoryTransactions()->create([
                     'type' => 'out',
                     'quantity' => $productData['jumlah'],
@@ -248,7 +241,6 @@ class ProductController extends Controller
             ->select('sale_details.*')
             ->orderBy('sales.tanggal_jual', 'desc');
 
-        // Apply filters
         if ($request->filled('search')) {
             $search = $request->search;
             $query->whereHas('product', function($q) use ($search) {
@@ -262,8 +254,6 @@ class ProductController extends Controller
         }
 
         $produkTerjual = $query->get();
-        
-        // Calculate totals
         $totalPendapatan = $produkTerjual->sum(function($sale) {
             return $sale->jumlah * $sale->harga;
         });
@@ -283,4 +273,19 @@ class ProductController extends Controller
         $lowStockCount = Product::whereRaw('stock <= minimum_stock')->count();
         return response()->json(['count' => $lowStockCount]);
     }
+
+    public function printReceipt($id)
+{
+    $sale = Sale::with(['details.product', 'user'])->findOrFail($id);
+    
+    $pdf = PDF::loadView('products.receipt', [
+        'sale' => $sale,
+        'tanggal' => Carbon::parse($sale->tanggal_jual)->format('d/m/Y'),
+        'waktu' => Carbon::now()->format('H:i:s')
+    ]);
+
+    $pdf->setPaper([0, 0, 226.772, 841.89], 'portrait');
+    
+    return $pdf->download('struk-penjualan-' . $id . '.pdf');
+}
 }
