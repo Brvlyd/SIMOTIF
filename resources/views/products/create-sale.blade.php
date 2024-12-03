@@ -19,23 +19,19 @@
             @csrf
             
             <div id="product-container">
-                <!-- First product entry -->
                 <div class="product-entry mb-4 bg-gray-50 p-4 rounded-lg">
                     <div class="grid grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700">Pilih Produk</label>
-                            <select name="products[0][product_id]" 
-                                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md product-select" 
-                                    required>
-                                <option value="">Pilih Produk</option>
-                                @foreach($products as $product)
-                                    <option value="{{ $product->id }}" 
-                                            data-stock="{{ $product->stock }}" 
-                                            data-price="{{ $product->price }}">
-                                        {{ $product->name }} - {{ $product->brand }} (Stok: {{ $product->stock }})
-                                    </option>
-                                @endforeach
-                            </select>
+                            <div class="relative">
+                                <input type="text" 
+                                       class="search-product mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md"
+                                       placeholder="Cari produk...">
+                                <input type="hidden" name="products[0][product_id]" class="product-id-input" required>
+                                <div class="search-results absolute z-10 w-full bg-white mt-1 rounded-md shadow-lg hidden">
+                                </div>
+                            </div>
+                            <p class="selected-product-info mt-2 text-sm text-gray-500"></p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">Jumlah</label>
@@ -57,6 +53,7 @@
                 </div>
             </div>
 
+            <!-- Remaining form fields... -->
             <div>
                 <label for="tanggal_jual" class="block text-sm font-medium text-gray-700">Tanggal Jual</label>
                 <input type="date" 
@@ -91,13 +88,54 @@
 
 @push('scripts')
 <script>
+const products = @json($products);
 let productCount = 0;
 
-function checkStock(input, stock) {
-    if (parseInt(input.value) > parseInt(stock)) {
-        alert('Jumlah melebihi stok yang tersedia!');
-        input.value = stock;
-    }
+function setupProductSearch(container) {
+    const searchInput = container.querySelector('.search-product');
+    const searchResults = container.querySelector('.search-results');
+    const productIdInput = container.querySelector('.product-id-input');
+    const productInfo = container.querySelector('.selected-product-info');
+    const quantityInput = container.querySelector('.quantity-input');
+
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        if (searchTerm.length < 1) {
+            searchResults.classList.add('hidden');
+            return;
+        }
+
+        const filteredProducts = products.filter(product => 
+            product.name.toLowerCase().includes(searchTerm) || 
+            product.brand.toLowerCase().includes(searchTerm)
+        );
+
+        searchResults.innerHTML = '';
+        filteredProducts.forEach(product => {
+            const div = document.createElement('div');
+            div.className = 'p-2 hover:bg-gray-100 cursor-pointer';
+            div.textContent = `${product.name} - ${product.brand} (Stok: ${product.stock})`;
+            div.addEventListener('click', () => {
+                productIdInput.value = product.id;
+                searchInput.value = `${product.name} - ${product.brand}`;
+                productInfo.textContent = `Stok tersedia: ${product.stock}`;
+                searchResults.classList.add('hidden');
+                
+                // Reset quantity input max value
+                quantityInput.max = product.stock;
+            });
+            searchResults.appendChild(div);
+        });
+
+        searchResults.classList.remove('hidden');
+    });
+
+    // Hide results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!container.contains(e.target)) {
+            searchResults.classList.add('hidden');
+        }
+    });
 }
 
 function createProductEntry(index) {
@@ -106,18 +144,15 @@ function createProductEntry(index) {
             <div class="grid grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Pilih Produk</label>
-                    <select name="products[${index}][product_id]" 
-                            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md product-select" 
-                            required>
-                        <option value="">Pilih Produk</option>
-                        @foreach($products as $product)
-                            <option value="{{ $product->id }}" 
-                                    data-stock="{{ $product->stock }}" 
-                                    data-price="{{ $product->price }}">
-                                {{ $product->name }} - {{ $product->brand }} (Stok: {{ $product->stock }})
-                            </option>
-                        @endforeach
-                    </select>
+                    <div class="relative">
+                        <input type="text" 
+                               class="search-product mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md"
+                               placeholder="Cari produk...">
+                        <input type="hidden" name="products[${index}][product_id]" class="product-id-input" required>
+                        <div class="search-results absolute z-10 w-full bg-white mt-1 rounded-md shadow-lg hidden">
+                        </div>
+                    </div>
+                    <p class="selected-product-info mt-2 text-sm text-gray-500"></p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Jumlah</label>
@@ -144,45 +179,33 @@ function createProductEntry(index) {
     `;
 }
 
+// Setup the first product entry
+setupProductSearch(document.querySelector('.product-entry'));
+
 document.getElementById('add-product').addEventListener('click', function() {
     productCount++;
     const container = document.getElementById('product-container');
     
-    // Create new product entry
     const wrapper = document.createElement('div');
     wrapper.innerHTML = createProductEntry(productCount);
     container.appendChild(wrapper.firstElementChild);
     
-    // Add event listeners for the new entry
     const newEntry = container.lastElementChild;
-    const select = newEntry.querySelector('select');
-    const quantityInput = newEntry.querySelector('.quantity-input');
+    setupProductSearch(newEntry);
+    
     const removeButton = newEntry.querySelector('.remove-product');
-    
-    // Event listener for quantity check
-    quantityInput.addEventListener('input', function() {
-        const selectedOption = select.options[select.selectedIndex];
-        if (selectedOption.value) {
-            checkStock(this, selectedOption.dataset.stock);
-        }
-    });
-    
-    // Event listener for remove button
     removeButton.addEventListener('click', function() {
         newEntry.remove();
     });
 });
 
-// Add event listener for first product entry
-const firstSelect = document.querySelector('select[name="products[0][product_id]"]');
-const firstQuantityInput = document.querySelector('input[name="products[0][jumlah]"]');
-
-firstQuantityInput.addEventListener('input', function() {
-    const selectedOption = firstSelect.options[firstSelect.selectedIndex];
-    if (selectedOption.value) {
-        checkStock(this, selectedOption.dataset.stock);
+// Function to check stock
+function checkStock(input, stock) {
+    if (parseInt(input.value) > parseInt(stock)) {
+        alert('Jumlah melebihi stok yang tersedia!');
+        input.value = stock;
     }
-});
+}
 </script>
 @endpush
 @endsection
