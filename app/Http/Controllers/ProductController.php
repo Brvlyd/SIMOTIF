@@ -183,6 +183,7 @@ class ProductController extends Controller
 
     public function storeSale(Request $request)
     {
+        // Validasi input penjualan
         $request->validate([
             'products' => 'required|array|min:1',
             'products.*.product_id' => 'required|exists:products,id',
@@ -190,32 +191,43 @@ class ProductController extends Controller
             'products.*.harga' => 'required|numeric|min:0',
             'tanggal_jual' => 'required|date'
         ]);
-
+    
+        // Memulai transaksi database
         DB::beginTransaction();
         try {
+            // Buat catatan penjualan baru
             $sale = Sale::create([
                 'tanggal_jual' => $request->tanggal_jual,
                 'user_id' => auth()->id()
             ]);
-
+    
+            // Iterasi setiap produk yang dijual
             foreach ($request->products as $productData) {
+                // Cari produk yang akan dijual
                 $product = Product::findOrFail($productData['product_id']);
                 
+                // Periksa ketersediaan stok
                 if ($product->stock < $productData['jumlah']) {
                     throw new \Exception("Stok tidak mencukupi untuk produk {$product->name}");
                 }
-
+    
+                // Hitung total harga (harga satuan * jumlah)
+                $totalHarga = $productData['harga'] * $productData['jumlah'];
+    
+                // Buat detail penjualan
                 SaleDetail::create([
                     'sale_id' => $sale->id,
                     'product_id' => $product->id,
                     'jumlah' => $productData['jumlah'],
-                    'harga' => $productData['harga']
+                    'harga' => $totalHarga // Simpan total harga
                 ]);
-
+    
+                // Kurangi stok produk
                 $product->stock -= $productData['jumlah'];
                 $product->status = $product->stock == 0 ? 'sold' : 'available';
                 $product->save();
-
+    
+                // Catat transaksi inventaris
                 $product->inventoryTransactions()->create([
                     'type' => 'out',
                     'quantity' => $productData['jumlah'],
@@ -223,12 +235,14 @@ class ProductController extends Controller
                     'user_id' => auth()->id()
                 ]);
             }
-
+    
+            // Commit transaksi
             DB::commit();
             return redirect()->route('products.sold')
                 ->with('success', 'Penjualan berhasil dicatat');
                 
         } catch (\Exception $e) {
+            // Batalkan transaksi jika terjadi kesalahan
             DB::rollback();
             return back()->with('error', $e->getMessage())->withInput();
         }

@@ -117,7 +117,7 @@
                 <th style="width: 25%;">Nama Produk</th>
                 <th style="width: 15%;">Brand</th>
                 <th style="width: 10%;">Jumlah</th>
-                <th style="width: 15%;">Harga</th>
+                <th style="width: 15%;">Harga Satuan</th>
                 <th style="width: 15%;">Total</th>
             </tr>
         </thead>
@@ -131,7 +131,8 @@
             @foreach($produkTerjual as $index => $sale)
                 @php
                     $totalItems += $sale->jumlah;
-                    $itemTotal = $sale->jumlah * $sale->harga;
+                    $hargaSatuan = $sale->harga / $sale->jumlah; // Hitung harga satuan
+                    $itemTotal = $sale->jumlah * $hargaSatuan;
                     $totalAmount += $itemTotal;
                     $uniqueProducts[$sale->product_id] = true;
                 @endphp
@@ -141,7 +142,7 @@
                     <td>{{ $sale->product->name }}</td>
                     <td>{{ $sale->product->brand }}</td>
                     <td class="amount">{{ number_format($sale->jumlah, 0, ',', '.') }}</td>
-                    <td class="amount">Rp {{ number_format($sale->harga, 0, ',', '.') }}</td>
+                    <td class="amount">Rp {{ number_format($hargaSatuan, 0, ',', '.') }}</td>
                     <td class="amount">Rp {{ number_format($itemTotal, 0, ',', '.') }}</td>
                 </tr>
             @endforeach
