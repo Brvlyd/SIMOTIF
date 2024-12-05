@@ -19,7 +19,7 @@
         </div>
         @endif
 
-        <!-- Summary Cards -->
+        <!-- Kartu Ringkasan -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div class="bg-blue-50 p-4 rounded-lg">
                 <h3 class="text-lg font-semibold text-blue-700">Total Transaksi</h3>
@@ -41,9 +41,9 @@
             </div>
         </div>
 
-        <!-- Search and Filter -->
+        <!-- Form Pencarian dan Filter -->
         <div class="mb-6">
-            <form action="{{ route('products.searchSold') }}" method="GET" class="flex gap-4">
+            <form action="{{ route('products.searchSold') }}" method="GET" class="flex gap-4" id="formPencarian">
                 <div class="flex-1">
                     <input type="text" 
                            name="search" 
@@ -55,7 +55,8 @@
                     <input type="date" 
                            name="date" 
                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                           value="{{ request('date') }}">
+                           value="{{ request('date') }}"
+                           title="Pilih tanggal untuk melihat penjualan pada tanggal tersebut">
                 </div>
                 <button type="submit" 
                         class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
@@ -70,6 +71,7 @@
             </form>
         </div>
 
+        <!-- Tabel Data -->
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -104,7 +106,7 @@
                             {{ ($produkTerjual->currentPage() - 1) * $produkTerjual->perPage() + $index + 1 }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {{ \Carbon\Carbon::parse($sale->tanggal_jual)->format('d/m/Y') }}
+                            {{ \Carbon\Carbon::parse($sale->sale->tanggal_jual)->format('d/m/Y') }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {{ $sale->product->name }}
@@ -125,7 +127,7 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
                                 {{ $sale->product->stock > 10 ? 'bg-green-100 text-green-800' : 
-                                   ($sale->product->stock > 0 ? 'bg-nayellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
+                                   ($sale->product->stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
                                 {{ $sale->product->stock }}
                             </span>
                         </td>
@@ -133,7 +135,7 @@
                     @empty
                     <tr>
                         <td colspan="7" class="px-6 py-4 whitespace-nowrap text-center text-gray-500">
-                            Tidak ada data penjualan
+                            Tidak ada data penjualan untuk pencarian ini
                         </td>
                     </tr>
                     @endforelse
@@ -148,7 +150,7 @@
         </div>
         @endif
 
-        <!-- Export Button -->
+        <!-- Tombol Export -->
         @if($produkTerjual->count() > 0)
         <div class="mt-6 flex justify-end">
             <a href="{{ route('products.exportPdf', request()->all()) }}" 
@@ -162,10 +164,35 @@
 
 @push('scripts')
 <script>
-    document.querySelector('input[name="date"]').addEventListener('change', function() {
-        if(this.value) {
-            this.form.submit();
+    document.addEventListener('DOMContentLoaded', function() {
+        const inputTanggal = document.querySelector('input[name="date"]');
+        const formPencarian = document.getElementById('formPencarian');
+
+        // Format tanggal ke format yyyy-mm-dd untuk input date
+        function formatDate(date) {
+            const d = new Date(date);
+            let month = '' + (d.getMonth() + 1);
+            let day = '' + d.getDate();
+            const year = d.getFullYear();
+
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+
+            return [year, month, day].join('-');
         }
+
+        // Set nilai input date jika ada
+        if (inputTanggal.value) {
+            inputTanggal.value = formatDate(inputTanggal.value);
+        }
+
+        inputTanggal.addEventListener('change', function() {
+            if(this.value) {
+                // Format tanggal sebelum submit
+                this.value = formatDate(this.value);
+                formPencarian.submit();
+            }
+        });
     });
 </script>
 @endpush

@@ -25,18 +25,22 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div class="bg-blue-50 p-4 rounded-lg">
                 <h3 class="text-lg font-semibold text-blue-700">Total Produk</h3>
-                <p class="text-2xl font-bold text-blue-800">{{ $products->count() }}</p>
+                <p class="text-2xl font-bold text-blue-800">{{ $products->total() }}</p>
             </div>
             <div class="bg-red-50 p-4 rounded-lg">
                 <h3 class="text-lg font-semibold text-red-700">Stok Menipis</h3>
                 <p class="text-2xl font-bold text-red-800">
-                    {{ $products->where('stock', '<=', 'minimum_stock')->count() }}
+                    {{ $products->filter(function($product) {
+                        return $product->stock <= $product->minimum_stock;
+                    })->count() }}
                 </p>
             </div>
             <div class="bg-green-50 p-4 rounded-lg">
                 <h3 class="text-lg font-semibold text-green-700">Stok Tersedia</h3>
                 <p class="text-2xl font-bold text-green-800">
-                    {{ $products->where('stock', '>', 'minimum_stock')->count() }}
+                    {{ $products->filter(function($product) {
+                        return $product->stock > $product->minimum_stock;
+                    })->count() }}
                 </p>
             </div>
         </div>
@@ -184,7 +188,7 @@
                     @forelse($products as $index => $product)
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {{ $index + 1 }}
+                            {{ ($products->currentPage() - 1) * $products->perPage() + $index + 1 }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {{ $product->name }}
@@ -215,7 +219,7 @@
                             @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ $product->updated_at->format('d/m/Y H:i:s') }}
+                        {{ $product->updated_at->format('d/m/Y H:i:s') }}
                         </td>
                     </tr>
                     @empty
@@ -229,7 +233,7 @@
             </table>
         </div>
 
-        @if(method_exists($products, 'hasPages') && $products->hasPages())
+        @if($products->hasPages())
         <div class="mt-4">
             {{ $products->links() }}
         </div>
